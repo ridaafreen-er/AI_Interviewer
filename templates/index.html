@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Interviewer</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- TOP LEFT LOGO -->
+<div class="top-bar">
+    <img src="/static/logo.png" class="nav-logo">
+    <span class="brand-name">AI Interviewer</span>
+</div>
+
+<!-- MAIN CHAT AREA -->
+<div class="container" id="chat-container">
+    <!-- Messages will appear here -->
+</div>
+
+<!-- CHAT INPUT BAR -->
+<div class="chat-input-bar">
+    <button class="icon-btn mic" title="Start recording" onclick="startRecording()">🎤</button>
+
+    <textarea
+        id="answer"
+        placeholder="Type your answer..."
+        rows="1"
+    ></textarea>
+
+    <button class="icon-btn submit" title="submit" onclick="submitAnswer()">✔</button>
+    <button class="icon-btn next" title="Next question" onclick="loadQuestion()">➡</button>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+
+    const chatContainer = document.getElementById("chat-container");
+    const textarea = document.getElementById("answer");
+
+    function addMessage(text, type) {
+        const bubble = document.createElement("div");
+        bubble.className = "chat-bubble " + type;
+        bubble.innerText = text;
+        chatContainer.appendChild(bubble);
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function loadQuestion() {
+        fetch("/question")
+        .then(res => res.json())
+        .then(data => {
+            addMessage(data.question, "question");
+            textarea.value = "";
+        })
+        .catch(err => console.error("Error loading question:", err));
+    }
+
+    window.loadQuestion = loadQuestion;
+    loadQuestion();
+
+    window.startRecording = function () {
+        if (!('webkitSpeechRecognition' in window)) {
+            alert("Speech recognition not supported");
+            return;
+        }
+        const recognition = new webkitSpeechRecognition();
+        recognition.lang = "en-US";
+        recognition.onresult = e => {
+            textarea.value = e.results[0][0].transcript;
+        };
+        recognition.start();
+    };
+
+    window.submitAnswer = function () {
+        const answer = textarea.value;
+        if (!answer.trim()) return;
+
+        addMessage(answer, "answer");
+
+        fetch("/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ answer })
+        })
+        .then(res => res.json())
+        .then(data => {
+            let feedbackText = `Confidence: ${data.confidence}/10\nClarity: ${data.clarity}/10\nFiller Words: ${data.filler_words}`;
+            if (data.feedback.length) {
+                feedbackText += "\n" + data.feedback.join("\n");
+            }
+            addMessage(feedbackText, "feedback");
+        });
+        textarea.value = "";
+    };
+
+    textarea.addEventListener("input", () => {
+        textarea.style.height = "auto";
+        textarea.style.height = textarea.scrollHeight + "px";
+    });
+
+    textarea.addEventListener("keydown", e => {
+        if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            submitAnswer();
+        }
+    });
+
+});
+</script>
+
+</body>
+</html>
