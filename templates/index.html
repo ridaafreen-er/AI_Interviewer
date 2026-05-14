@@ -6,32 +6,138 @@
 </head>
 <body>
 
-<!-- TOP LEFT LOGO -->
-<div class="top-bar">
-    <img src="/static/logo.png" class="nav-logo">
-    <span class="brand-name">AI Interviewer</span>
+<!-- QUIZ SECTION -->
+<div id="quiz-container">
+    <div id="quiz-intro">
+        <h1>Interview Readiness Quiz</h1>
+        <p>Assess your preparation in 60 seconds!</p>
+        <button class="nextModule" onclick="startQuizFlow()">Start Quiz ➜</button>
+    </div>
+
+    <div id="quiz-question-area" style="display: none;">
+        <h2 id="quiz-question-text"></h2>
+        <div id="quiz-options"></div>
+    </div>
+
+    <div id="quiz-results" style="display: none;">
+        <h2>Ready Score: <span id="readiness-score">0</span>%</h2>
+        <h3>Level: <span id="readiness-level">...</span></h3>
+        <ul id="readiness-tips"></ul>
+        <button class="nextModule" onclick="startInterview()">Start Real Interview ➜</button>
+        <button class="nextModule" style="background: #555;" onclick="location.reload()">Back to Intro</button>
+    </div>
 </div>
 
-<!-- MAIN CHAT AREA -->
-<div class="container" id="chat-container">
-    <!-- Messages will appear here -->
-</div>
+<!-- MAIN APP (HIDDEN INITIALLY) -->
+<div id="main-app" style="display: none;">
+    <!-- TOP LEFT LOGO -->
+    <div class="top-bar">
+        <div class="nav-content" onclick="window.location.href='/';">
+            <img src="/static/logo.png" class="nav-logo">
+            <span class="brand-name">AI Interviewer</span>
+        </div>
+        <div class="nav-links">
+            <a href="/" class="nav-link">Home</a>
+            <a href="/quiz" class="nav-link">Technical Quiz</a>
+            <a href="/portfolio_page" class="nav-link">Portfolio Analysis</a>
+        </div>
+    </div>
 
-<!-- CHAT INPUT BAR -->
-<div class="chat-input-bar">
-    <button class="icon-btn mic" title="Start recording" onclick="startRecording()">🎤</button>
+    <!-- MAIN CHAT AREA -->
+    <div class="container" id="chat-container">
+        <!-- Messages will appear here -->
+    </div>
 
-    <textarea
-        id="answer"
-        placeholder="Type your answer..."
-        rows="1"
-    ></textarea>
+    <!-- CHAT INPUT BAR -->
+    <div class="chat-input-bar">
+        <button class="icon-btn mic" title="Start recording" onclick="startRecording()">🎤</button>
 
-    <button class="icon-btn submit" title="submit" onclick="submitAnswer()">✔</button>
-    <button class="icon-btn next" title="Next question" onclick="loadQuestion()">➡</button>
+        <textarea
+            id="answer"
+            placeholder="Type your answer..."
+            rows="1"
+        ></textarea>
+
+        <button class="icon-btn submit" title="submit" onclick="submitAnswer()">✔</button>
+        <button class="icon-btn next" title="Next question" onclick="loadQuestion()">➡</button>
+        <button class="icon-btn" title="Back to Quiz" onclick="window.location.href='/';">🏠</button>
+    </div>
 </div>
 
 <script>
+let quizData = [];
+let currentQuestionIndex = 0;
+let userAnswers = [];
+
+function startQuizFlow() {
+    document.getElementById("quiz-intro").style.display = "none";
+    document.getElementById("quiz-question-area").style.display = "block";
+    
+    fetch("/quiz-questions")
+        .then(res => res.json())
+        .then(data => {
+            quizData = data;
+            showQuizQuestion();
+        });
+}
+
+function showQuizQuestion() {
+    if (currentQuestionIndex >= quizData.length) {
+        submitQuizResults();
+        return;
+    }
+    
+    const q = quizData[currentQuestionIndex];
+    document.getElementById("quiz-question-text").innerText = q.question;
+    const optionsDiv = document.getElementById("quiz-options");
+    optionsDiv.innerHTML = "";
+    
+    q.options.forEach(opt => {
+        const btn = document.createElement("div");
+        btn.className = "quiz-opt";
+        btn.innerText = opt.text;
+        btn.onclick = () => selectOption(opt.score);
+        optionsDiv.appendChild(btn);
+    });
+}
+
+function selectOption(score) {
+    userAnswers.push(score);
+    currentQuestionIndex++;
+    showQuizQuestion();
+}
+
+function submitQuizResults() {
+    document.getElementById("quiz-question-area").style.display = "none";
+    
+    fetch("/submit-quiz", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers: userAnswers })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("quiz-results").style.display = "block";
+        document.getElementById("readiness-score").innerText = data.score;
+        document.getElementById("readiness-level").innerText = data.level;
+        
+        const tipsList = document.getElementById("readiness-tips");
+        tipsList.innerHTML = "";
+        data.tips.forEach(tip => {
+            const li = document.createElement("li");
+            li.innerText = tip;
+            tipsList.appendChild(li);
+        });
+    });
+}
+
+function startInterview() {
+    document.getElementById("quiz-container").style.display = "none";
+    document.getElementById("main-app").style.display = "block";
+    // Initialize the real interview
+    window.loadQuestion();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
 
     const chatContainer = document.getElementById("chat-container");
@@ -43,6 +149,9 @@ document.addEventListener("DOMContentLoaded", () => {
         bubble.innerText = text;
         chatContainer.appendChild(bubble);
         chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    function clearMessages() {
+        chatContainer.innerHTML = "";
     }
 
     function loadQuestion() {
@@ -56,7 +165,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     window.loadQuestion = loadQuestion;
-    loadQuestion();
+    // loadQuestion(); removed to prevent early loading before quiz
 
     window.startRecording = function () {
         if (!('webkitSpeechRecognition' in window)) {
@@ -89,6 +198,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 feedbackText += "\n" + data.feedback.join("\n");
             }
             addMessage(feedbackText, "feedback");
+            showNextSteps();
         });
         textarea.value = "";
     };
@@ -106,6 +216,30 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
 });
+function showNextSteps() {
+    if (document.getElementById("nextSteps")) return;
+
+    const container = document.getElementById("chat-container");
+    const div = document.createElement("div");
+    div.id = "nextSteps";
+    div.style.textAlign = "center";
+    div.style.marginTop = "20px";
+
+    div.innerHTML = `
+        <button onclick="goQuiz()" class="nextModule">Technical Quiz ➜</button>
+        <button onclick="goPortfolio()" class="nextModule">Portfolio ➜</button>
+    `;
+
+    container.appendChild(div);
+}
+
+function goQuiz() {
+    window.location.href = "{{ url_for('quiz_page') }}";
+}
+
+function goPortfolio() {
+    window.location.href = "{{ url_for('portfolio_page') }}";
+}
 </script>
 
 </body>

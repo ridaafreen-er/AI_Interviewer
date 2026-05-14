@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Technical Quiz - AI Interviewer</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<div class="top-bar">
+    <div class="nav-content" onclick="window.location.href='/';">
+        <img src="/static/logo.png" class="nav-logo">
+        <span class="brand-name">AI Interviewer</span>
+    </div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">Home</a>
+        <a href="/quiz" class="nav-link">Technical Quiz</a>
+        <a href="/portfolio_page" class="nav-link">Portfolio Analysis</a>
+    </div>
+</div>
+
+<div class="container" id="chat-container">
+    <!-- Topic Selection -->
+    <div id="topic-selection" style="text-align: center; margin-top: 20px;">
+        <h2>Select Your Technical Topic</h2>
+        <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin-top: 20px;">
+            <button class="nextModule" onclick="startTechnicalQuiz('web')">Web Development</button>
+            <button class="nextModule" onclick="startTechnicalQuiz('backend')">Backend</button>
+            <button class="nextModule" onclick="startTechnicalQuiz('api')">API</button>
+            <button class="nextModule" onclick="startTechnicalQuiz('ai_ds_ml')">AI / Data Science / ML</button>
+        </div>
+    </div>
+
+    <!-- Quiz Area -->
+    <div id="quiz-area" style="display: none; text-align: center; margin-top: 20px;">
+        <h2 id="question-text"></h2>
+        <div id="options-container" style="display: flex; flex-direction: column; gap: 10px; margin-top: 20px;"></div>
+    </div>
+
+    <!-- Results Area -->
+    <div id="results-area" style="display: none; text-align: center; margin-top: 20px;">
+        <h2>Quiz Results</h2>
+        <p id="score-text"></p>
+        <p id="level-text"></p>
+        <button class="nextModule" onclick="location.reload()">Try Another Topic</button>
+        <button class="nextModule" onclick="window.location.href='/';">Back to Home</button>
+    </div>
+</div>
+
+<div class="chat-input-bar">
+    <button class="icon-btn next" title="Back to Interview" onclick="window.location.href='/';">🏠</button>
+</div>
+
+<script>
+    let currentQuestions = [];
+    let currentQuestionIndex = 0;
+    let userAnswers = [];
+    let selectedTopic = "";
+
+    function startTechnicalQuiz(topic) {
+        selectedTopic = topic;
+        fetch(`/technical-questions/${topic}`)
+            .then(res => res.json())
+            .then(data => {
+                currentQuestions = data;
+                currentQuestionIndex = 0;
+                userAnswers = [];
+                document.getElementById("topic-selection").style.display = "none";
+                document.getElementById("quiz-area").style.display = "block";
+                showQuestion();
+            });
+    }
+
+    function showQuestion() {
+        if (currentQuestionIndex >= currentQuestions.length) {
+            submitResults();
+            return;
+        }
+
+        const q = currentQuestions[currentQuestionIndex];
+        document.getElementById("question-text").innerText = q.question;
+        const container = document.getElementById("options-container");
+        container.innerHTML = "";
+
+        q.options.forEach((opt, index) => {
+            const btn = document.createElement("button");
+            btn.className = "nextModule";
+            btn.style.width = "100%";
+            btn.innerText = opt;
+            btn.onclick = () => {
+                userAnswers.push(index);
+                currentQuestionIndex++;
+                showQuestion();
+            };
+            container.appendChild(btn);
+        });
+    }
+
+    function submitResults() {
+        document.getElementById("quiz-area").style.display = "none";
+        fetch("/submit-technical-quiz", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                topic: selectedTopic,
+                answers: userAnswers
+            })
+        })
+        .then(res => res.json())
+        .then(data => {
+            document.getElementById("results-area").style.display = "block";
+            document.getElementById("score-text").innerText = `Score: ${data.score}% (${data.correct}/${data.total})`;
+            document.getElementById("level-text").innerText = `Level: ${data.level}`;
+        });
+    }
+</script>
+
+</body>
+</html>
